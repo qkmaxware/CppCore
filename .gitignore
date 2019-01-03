@@ -1,0 +1,9 @@
+build/
+.vscode/
+bazel-*/
+docs/
+
+*.exe
+*.o
+*.a
+*.old
