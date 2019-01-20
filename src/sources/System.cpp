@@ -51,7 +51,7 @@ bool Throwable::HasCause() const {
 void Throwable::PrintTrace(std::ostream& stream) const {
     stream << GetMessage();
     if(HasCause()){
-        stream << System::Environment::NewLine;
+        stream << System::Os::EOL;
         GetCause().PrintTrace(stream);
     }
 }

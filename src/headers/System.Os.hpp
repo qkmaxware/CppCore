@@ -1,14 +1,14 @@
-#ifndef _SYSTEM_ENVIRONMENT_HPP
-#define _SYSTEM_ENVIRONMENT_HPP
-
+#ifndef _SYSTEM_OS_HPP
+#define _SYSTEM_OS_HPP
+ 
 #include <iostream>
 #include <cstdlib>
 #include <limits>
-
-#if (defined(_WIN) || defined(WIN) || defined(_WIN32) || defined (WIN32) || defined (_WIN64) || defined(WIN64)) 
+ 
+#if (defined(_WIN) || defined(WIN) || defined(_WIN32) || defined (WIN32) || defined (_WIN64) || defined(WIN64))
     #define __OS_WINDOWS
 #elif defined(__CYGWIN__)
-    #define __OS_WINDOWS  
+    #define __OS_WINDOWS 
 #elif defined(__ANDROID__)
     #define __OS_ANDROID
 #elif defined(__linux__)
@@ -20,25 +20,15 @@
 #else
     #define __OS_UNKNOWN
 #endif
-
+ 
 namespace System {
-namespace Environment {
-
+namespace Os {
+    
     /**
-     * The character(s) used to represent newlines on this system
+     * The operating system name
      */
-    const std::string NewLine
-    #ifdef __OS_WINDOWS 
-         = "\r\n";
-    #else 
-         = "\n"; 
-    #endif
-
-    /**
-     * The operating sytem name
-     */
-    const std::string OsName
-    #if defined(__OS_WINDOWS )
+    const std::string Platform
+    #if defined(__OS_WINDOWS)
          = "Windows";
     #elif defined(__OS_ANDROID)
          = "Android";
@@ -48,113 +38,55 @@ namespace Environment {
          = "MacOS";
     #elif defined( __OS_FREEBSD)
          = "Free BSD";
-    #else 
-        = "Unknown"; 
+    #else
+        = "Unknown";
     #endif
-
+    
     /**
      * The bitness of the operating system (32, 64 ect)
      */
-    const std::string OsBitness = std::to_string(sizeof(int) * std::numeric_limits<unsigned char>::digits); 
-
+    const std::size_t Bitness = sizeof(int) * std::numeric_limits<unsigned char>::digits;
+    
+    /**
+     * The current user
+     */
+    const std::string User
+    #ifdef __OS_WINDOWS
+         = std::getenv("USERNAME") ? std::getenv("USERNAME") : "";
+    #else
+         = std::getenv("USER") ? std::getenv("USER") : "";
+    #endif
+    
     /**
      * The name of the computer (not guaranteed)
      */
     const std::string ComputerName
-    #ifdef __OS_WINDOWS 
+    #ifdef __OS_WINDOWS
          = std::getenv("COMPUTERNAME") ?  std::getenv("COMPUTERNAME") : "";
-    #else 
-         = std::getenv("HOSTNAME") ? std::getenv("HOSTNAME") : ""; 
+    #else
+         = std::getenv("HOSTNAME") ? std::getenv("HOSTNAME") : "";
     #endif
-
+    
     /**
-     * The current user (not guaranteed)
+     * System independent line separation sequence
      */
-    const std::string UserName
-    #ifdef __OS_WINDOWS 
-         = std::getenv("USERNAME") ? std::getenv("USERNAME") : "";
-    #else 
-         = std::getenv("USER") ? std::getenv("USER") : ""; 
-    #endif
+     const std::string EOL
+     #ifdef __OS_WINDOWS
+          = "\r\n";
+     #else
+          = "\n";
+     #endif
 
     /**
-     * The value of the current PATH (not guaranteed)
-     */
-    const std::string Path = std::getenv("PATH") ? std::getenv("PATH") : "";
-
-    /**
-     * The symbol used to represent the root of the computer's file-system
-     * C:\ in Windows and / in Unix or Linux environments
-     */
-    const std::string FileRoot
-    #ifdef __OS_WINDOWS 
-         =  std::getenv("HOMEDRIVE") ? std::getenv("HOMEDRIVE") : "C:\\";
-    #else 
-         = "/"; 
-    #endif
-
-    /**
-     * The symbol used to represent the directory where temp files are stored
-     */
-    const std::string TempRoot
-    #ifdef __OS_WINDOWS 
-         = std::getenv("TEMP") ? std::getenv("TEMP") : "%TEMP%";
-    #else 
-         = "/tmp"; 
-    #endif
-
-    /**
-     * The symbol used to represent the directory where application data files are stored
-     */
-    const std::string AppDataRoot
-    #if defined(__OS_WINDOWS) 
-         = std::getenv("APPDATA") ? std::getenv("APPDATA") : "%APPDATA%";
-    #elif defined(__OS_MAC)
-         = "~/Library/Application Support/";
-    #else 
-         = "/var/lib"; 
-    #endif
-
-    /**
-     * The symbol used to represent the directory where user files are stored
-     */
-    const std::string UserHomeRoot
-    #ifdef __OS_WINDOWS 
-         = FileRoot + std::getenv("HOMEPATH") ? std::getenv("HOMEPATH") : "%HOMEPATH%";
-    #else 
-         = (UserName == "" ? "~" : ("/home/" + UserName)); 
-    #endif
-
-    /**
-     * The symbol used to separate directories in the filesystem
-     */
-    const std::string PathSeparator
-    #ifdef __OS_WINDOWS 
-         = "\\";
-    #else 
-         = "/"; 
-    #endif
-
-    /**
-     * The symbol used as a separator between paths in the PATH variable
-     */
-    const std::string PathDelimeter
-    #ifdef __OS_WINDOWS 
-         = ";";
-    #else 
-         = ":"; 
-    #endif
-
-    /**
-     * The name of the compiler used to compile this software 
+     * The name of the compiler used to compile this software
      */
     //const std::string CompilerName;
     /**
-     * The version string for the compiler used to compile this software 
+     * The version string for the compiler used to compile this software
      */
     //const std::string CompilerVersion;
     #if defined(__clang__)
-	    /* Clang/LLVM. ---------------------------------------------- */
+        /* Clang/LLVM. ---------------------------------------------- */
         const std::string CompilerName = "Clang/LLVM";
         const std::string CompilerVersion = __clang_version__;
     #elif defined(__ICC) || defined(__INTEL_COMPILER)
@@ -183,15 +115,15 @@ namespace Environment {
         const std::string CompilerVersion = __PGIC__"."__PGIC_MINOR__"."__PGIC_PATCHLEVEL__;
     #elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
         /* Oracle Solaris Studio. ----------------------------------- */
-        const std::string CompilerName = "Oracle Solaris Studio"; 
+        const std::string CompilerName = "Oracle Solaris Studio";
         const std::string CompilerVersion = __SUNPRO_CC;
     #else
-        const std::string CompilerName = "Unknown"; 
+        const std::string CompilerName = "Unknown";
         const std::string CompilerVersion = "--";
     #endif
-
+    
     /**
-     * The name of the architecture this software is compiled for 
+     * The name of the architecture this software is compiled for
      */
     const std::string Architecture
     #if defined(__ia64) || defined(__itanium__) || defined(_M_IA64)
@@ -200,7 +132,7 @@ namespace Environment {
     #elif defined(__powerpc__) || defined(__powerpc64__) || defined(__ppc__) || defined(__ppc64__) || defined(__PPC__) || defined(__PPC64__)
          = "PowerPC";
         #define __ARCH_POWERPC
-    #elif defined(__sparc)
+   #elif defined(__sparc)
          = "SPARC";
         #define __ARCH_SPARC
     #elif defined(__s390__)
@@ -240,8 +172,80 @@ namespace Environment {
          = "Unknown";
         #define __ARCH_UNKNOWN
     #endif
-
+    
+    namespace Environment {
+        /**
+         * The value of the current PATH (not guaranteed)
+         */
+        const std::string Path = std::getenv("PATH") ? std::getenv("PATH") : "";
+    }
+    
+    namespace Path {
+        /**
+         * The symbol used to separate directories in the filesystem
+         */
+        const std::string Separator
+        #ifdef __OS_WINDOWS
+             = "\\";
+        #else
+             = "/";
+        #endif
+        
+        /**
+         * The symbol used as a separator between paths in the PATH variable
+         */
+        const std::string Delimeter
+        #ifdef __OS_WINDOWS
+             = ";";
+        #else
+             = ":";
+        #endif  
+        
+        /**
+         * The symbol used to represent the root of the computer's file-system
+         * C:\ in Windows and / in Unix or Linux environments
+         */
+        const std::string Root
+        #ifdef __OS_WINDOWS
+             =  std::getenv("HOMEDRIVE") ? std::getenv("HOMEDRIVE") : "C:\\";
+        #else
+             = "/";
+        #endif
+        
+        /**
+         * The symbol used to represent the directory where temp files are stored
+         */
+        const std::string Temp
+        #ifdef __OS_WINDOWS
+             = std::getenv("TEMP") ? std::getenv("TEMP") : "%TEMP%";
+        #else
+             = "/tmp";
+        #endif
+        
+        /**
+         * The symbol used to represent the directory where application data files are stored
+         */
+        const std::string AppData
+        #if defined(__OS_WINDOWS)
+             = std::getenv("APPDATA") ? std::getenv("APPDATA") : "%APPDATA%";
+        #elif defined(__OS_MAC)
+             = "~/Library/Application Support/";
+        #else
+             = "/var/lib";
+        #endif
+        
+        /**
+         * The symbol used to represent the directory where user files are stored
+         */
+        const std::string UserHome
+        #ifdef __OS_WINDOWS
+             = FileRoot + std::getenv("HOMEPATH") ? std::getenv("HOMEPATH") : "%HOMEPATH%";
+        #else
+             = (User == "" ? "~" : ("/home/" + User));
+        #endif
+    }
+ 
 }
 }
-
+ 
 #endif

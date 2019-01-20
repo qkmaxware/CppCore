@@ -1,5 +1,5 @@
 #include "System.Io.Path.hpp"
-#include "System.Environment.hpp"
+#include "System.Os.hpp"
 
 #include <iostream>
 
@@ -58,7 +58,7 @@ System::Text::String Path::GetFullName() {
 }
 
 System::Text::String Path::GetFullPath() {
-    return this->root + System::Environment::PathSeparator + this->name + '.' + this->ext;
+    return this->root + System::Os::Path::Separator + this->name + '.' + this->ext;
 }
 
 #ifdef __OS_WINDOWS

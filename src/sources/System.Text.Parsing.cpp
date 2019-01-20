@@ -1,5 +1,7 @@
 #include "System.Text.Parsing.hpp"
 
+#include <sstream>
+
 namespace System {
 namespace Text {
 namespace Parsing {
@@ -73,6 +75,79 @@ Parser<char> Range(char start, char end) {
         } else {
             return Failure<char>(it);
         }
+    };
+}
+
+Parser<char> CharIn(const std::initializer_list<char> chars) {
+    return  [=](const ParseIterator& it) -> ParseResult<char> {
+        if(it.Length() != 0 && std::find(cbegin(chars), cend(chars), it.Peek()) != cend(chars)){
+            return Success<char>(it.Peek(), it.Move(1));
+        } else {
+            return Failure<char>(it);
+        }
+    };
+};
+
+Parser<char> NotChar(char c) {
+    return  [=](const ParseIterator& it) -> ParseResult<char> {
+        if(it.Length() != 0 && it.Peek() != c){
+            return Success<char>(it.Peek(), it.Move(1));
+        } else {
+            return Failure<char>(it);
+        }
+    };
+};
+
+Parser<char> ParseStringCharacter() {
+    return  [=](const ParseIterator& it) -> ParseResult<char> {
+        if(it.Length() == 0)
+            return Failure<char>(it); //Missing char
+
+        char c = it.Peek();
+        if(c == '\\') {
+            ParseIterator it2 = it.Move(1);
+            if(it2.Length() == 0) 
+                return Failure<char>(it); //Missing escaped char
+
+            switch(it2.Peek()) {
+                case '"':
+                    case '\\':
+                    case '/':
+                        return Success<char>(it2.Peek(), it2.Move(1));
+                    case 'b':
+                        return Success<char>('\b', it2.Move(1));
+                    case 'f':
+                        return Success<char>('\f', it2.Move(1));
+                    case 'n':
+                        return Success<char>('\n', it2.Move(1));
+                    case 'r': 
+                        return Success<char>('\r', it2.Move(1));
+                    case 't': 
+                        return Success<char>('\t', it2.Move(1));
+                    default:
+                        return Failure<char>(it); //Not an escape character
+            }            
+        } else if(c == '"') {
+            return Failure<char>(it); //Quote that has not been escaped
+        } else {
+            return Success<char>(c, it.Move(1)); //Was a literal
+        }
+    };
+};
+
+Parser<std::string> ExactString(const std::string& str) {
+    return [=](const ParseIterator& it) -> ParseResult<std::string> {
+        if(str.length() > it.Length())
+            return Failure<std::string>(it);
+        ParseIterator i = it;
+        for(auto c : str) {
+            if(i.Peek() == c) {
+                i = i.Move(1);
+            } else {
+                return Failure<std::string>(it);
+            }
+        }
+        return Success<std::string>(str, i);
     };
 }
 

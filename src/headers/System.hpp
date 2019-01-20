@@ -8,7 +8,7 @@
 #include <memory>
 #include <cuchar>
 
-#include "System.Environment.hpp"
+#include "System.Os.hpp"
 
 //Based on:
 //https://docs.microsoft.com/en-us/dotnet/api/system?view=netframework-4.7.2

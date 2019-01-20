@@ -1,5 +1,5 @@
 #include "System.Io.Logging.hpp"
-#include "System.Environment.hpp" 
+#include "System.Os.hpp" 
 #include <algorithm>
 #include <fstream>
 #include <sstream>
@@ -95,7 +95,7 @@ void Logger::Log(LogLevel event, const std::string& data) {
     }
     buf 
         << data 
-        << System::Environment::NewLine;
+        << System::Os::EOL;
     this->data = buf.str();
     this->Notify(static_cast<int>(event));
 }

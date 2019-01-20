@@ -6,6 +6,8 @@
 #include "Tests.System.Text.String.hpp"
 #include "Tests.System.Math.hpp"
 #include "Tests.System.Io.Path.hpp"
+#include "Tests.System.Text.Parsing.hpp"
+#include "Tests.System.Text.Json.hpp"
 
 // Other Includes
 

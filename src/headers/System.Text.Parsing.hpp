@@ -8,16 +8,18 @@
 #include <regex>
 #include <variant>
 #include <limits>
+#include <cmath>
 
 namespace System {
 namespace Text {
 namespace Parsing {
 
 struct ParseIterator {
-    public:
-        const std::string::const_iterator begin;
-        const std::string::const_iterator end;
+    private:
+        std::string::const_iterator begin;
+        std::string::const_iterator end;
 
+    public:
         ParseIterator(const std::string& data);
         ParseIterator(const std::string::iterator& b, const std::string::iterator& e);
         ParseIterator(const std::string::const_iterator& b, const std::string::const_iterator& e);
@@ -36,14 +38,21 @@ struct ParseIterator {
 
 template <typename T>
 struct ParseResult {
-    const bool success;
-    const T value;
-    const ParseIterator remaining;
+    bool success;
+    T value;
+    ParseIterator remaining;
 
-    ParseResult() : success(false), value(), remaining() {}
+    ParseResult() : success(false), value(), remaining("") {}
     ParseResult(bool yes, const T& value, const ParseIterator& it): success(yes), value(value), remaining(it) {}
     ParseResult(const ParseResult<T>& other): success(other.success), value(other.value), remaining(other.remaining) {}
     ~ParseResult() = default;
+
+    ParseResult<T>& operator= ( const ParseResult<T>& res) {
+        success = res.success;
+        value = res.value;
+        remaining = res.remaining;
+        return *this;
+    }
 
     operator bool() {
         return success;
@@ -82,16 +91,13 @@ Parser<char> Char(char c);
 
 Parser<char> Range(char start, char end);
 
+Parser<char> CharIn(const std::initializer_list<char> chars);
 
-const Parser<char> Digit = Range('0', '9');
+Parser<char> NotChar(char c);
 
-const Parser<char> Lowercase = Range('a', 'z');
+Parser<std::string> ExactString(const std::string& str);
 
-const Parser<char> Uppercase = Range('A', 'Z');
-
-const Parser<char> Alpha = Range('a', 'Z');
-
-const Parser<char> AlphaNumeric = Range('0', 'Z'); //Maybe replace with Or(Digit, Alpha)
+Parser<char> ParseStringCharacter();
 
 //Combinators
 //Return the results of all parsers in sequence, fails if any fail
@@ -117,35 +123,55 @@ Parser<std::tuple<T,Ks ...>> Sequence(const Parser<T>& first, const Parser<Ks>& 
         ParseResult<std::tuple<Ks ...>> r2 = p2(r1.remaining);
         if(!r2)
             return Failure<std::tuple<T,Ks ...>>(it);
-        return Success(std::tuple_cat(r1.value, r2.value), r2.remaining);
+        return Success(std::tuple_cat(std::make_tuple(r1.value), r2.value), r2.remaining);
     };
 }
 
+template <typename ... Ts>
+using AlternativeType = std::tuple<std::optional<Ts> ...>;
+
 //Choose first successful parser
 template <typename T, typename K>
-Parser<std::variant<T, K>> Alternate(const Parser<T>& first, const Parser<K>&  next) {
-    return [=](const ParseIterator& it) -> ParseResult<std::variant<T, K>> { 
+Parser<AlternativeType<T,K>> Alternate(const Parser<T>& first, const Parser<K>&  next) {
+    return [=](const ParseIterator& it) -> ParseResult<AlternativeType<T,K>> { 
         ParseResult<T> r1 = first(it);
-        if(r1)
-            return Success<std::variant<T, K>>(r1.value, r1.remaining);
+        if(r1){
+            return Success<AlternativeType<T,K>>(
+                std::make_tuple<std::optional<T>, std::optional<K>>(r1.value, {}), 
+                r1.remaining
+            );
+        }
         ParseResult<K> r2 = next(r1.remaining);
-        if(r2)
-            return Success<std::variant<T, K>>(r2.value, r2.remaining);
-        return Failure<std::variant<T, K>>(it);
+        if(r2) {
+            return Success<AlternativeType<T,K>>(
+                std::make_tuple<std::optional<T>, std::optional<K>>({}, r2.value), 
+                r2.remaining
+            );
+        }
+        return Failure<AlternativeType<T,K>>(it);
     };
 }
 //TODO Varient not available in anything < c++17 so thats an issue
 template <typename T, typename ... Ks>
-Parser<std::variant<T, Ks...>> Alternate(const Parser<T>& first, const Parser<Ks>& ... next) {
-    Parser<std::variant<Ks...>> p2 = Alternate(next ...);
-    return [=](const ParseIterator& it) -> ParseResult<std::variant<T, Ks ...>> { 
+Parser<AlternativeType<T, Ks...>> Alternate(const Parser<T>& first, const Parser<Ks>& ... next) {
+    Parser<AlternativeType<Ks...>> p2 = Alternate(next ...);
+    return [=](const ParseIterator& it) -> ParseResult<AlternativeType<T, Ks...>> { 
         ParseResult<T> r1 = first(it);
-        if(r1)
-            return Success<std::variant<T, Ks ...>>(r1.value, r1.remaining);
-        ParseResult<std::variant<Ks...>> r2 = p2(r1.remaining);
-        if(r2)
-            return Success<std::variant<T, Ks ...>>(std::move(r2.value), r2.remaining);
-        return Failure<std::variant<T, Ks ...>>(it);
+        if(r1) {
+            std::tuple<std::optional<Ks>...> tup = std::make_tuple(std::optional<Ks>()...);
+            return Success<AlternativeType<T, Ks...>>(
+                std::tuple_cat(std::make_tuple(std::optional<T>(r1.value)), tup), 
+                r1.remaining
+            );
+        }
+        ParseResult<AlternativeType<Ks...>> r2 = p2(r1.remaining);
+        if(r2) {
+            return Success<AlternativeType<T, Ks...>>(
+                std::tuple_cat(std::make_tuple(std::optional<T>({})), r2.value), 
+                r2.remaining
+            );
+        }
+        return Failure<AlternativeType<T, Ks...>>(it);
     };
 }
 
@@ -160,7 +186,7 @@ Parser<std::vector<T>> Repeat(const Parser<T>& parser, size_t min, size_t max) {
         size_t i{0};
         for(; i < max; i++) {
             results = parser(itc); //TODO Fix this (iterator must update each loop)
-            if(results) {
+            if(!results) {
                 break;
             } else {
                 stack.push_back(results.value);
@@ -220,7 +246,7 @@ Parser<T> Lookahead(const Parser<T>& parser) {
 
 //Convert the output of a parser from one type to another
 template <typename T, typename K>
-Parser<K> Map(const Parser<T>& parser, std::function<K(T)>& mapping) {
+Parser<K> Map(const Parser<T>& parser, const std::function<K(T&)>& mapping) {
     return [=](const ParseIterator& it) -> ParseResult<K> {
         ParseResult<T> r = parser(it);
         if(r)
@@ -232,7 +258,7 @@ Parser<K> Map(const Parser<T>& parser, std::function<K(T)>& mapping) {
 
 //Convert the output of a parser from one type to another converting failures to successes
 template <typename T, typename K>
-Parser<K> BiMap(const Parser<T>& parser, std::function<K(T)>& success, std::function<K(T)>& failure){
+Parser<K> BiMap(const Parser<T>& parser, const std::function<K(T&)>& success, const std::function<K(T&)>& failure){
     return [=](const ParseIterator& it) -> ParseResult<K> {
         ParseResult<T> r = parser(it);
         if(r)
@@ -268,34 +294,60 @@ Parser<K> Last(const Parser<std::tuple<Ts ..., K>>& parser) {
 }
 
 //Get the middle element(s) from a sequence
-template <typename T, typename T2, typename ... Ks>
-Parser<std::tuple<Ks ...>> Between(const Parser<std::tuple<T, Ks ..., T2>>& parser) {
-    return [=](const ParseIterator& it) -> ParseResult<std::tuple<Ks ...>> {
-        ParseResult<std::tuple<T, Ks ..., T2>> r = parser(it);
-        if(r)
-            return Success<std::tuple<Ks ...>>(
-                std::make_tuple(std::get<Ks>(r.value) ...),
+template <typename T, typename T2, typename T3>
+Parser<T2> Between(const Parser<std::tuple<T, T2, T3>>& parser) {
+    return [=](const ParseIterator& it) -> ParseResult<T2> {
+        ParseResult<std::tuple<T, T2, T3>> r = parser(it);
+        if(r){
+            return Success<T2>(
+                std::get<1>(r.value),
                 r.remaining
             );
-        else 
-            return Failure<std::tuple<Ks ...>>(it);
+        }
+        else { 
+            return Failure<T2>(it);
+        }
     };
 }
 
 //Utility parsers (premade combinations)
 template <typename T>
-Parser<T> OneOrMore(const Parser<T> parser) {
+Parser<std::vector<T>> OneOrMore(const Parser<T>& parser) {
     return Repeat(parser, 1);
 }
 
 template <typename T>
-Parser<T> ZeroOrMore(const Parser<T> parser) {
+Parser<std::vector<T>> ZeroOrMore(const Parser<T>& parser) {
     return Repeat(parser, 0);
 }
 
 template <typename T, typename K>
-Parser<T> Skip(const Parser<T> parser, const Parser<K> toSkip) {
-    return Between(Sequence(Optional(toSkip), parser, Optional(toSkip))); //Maybe just Last(Sequence(Optional(toSkip), parser)); skipping only leading values
+Parser<T> Skip(const Parser<T>& parser, const Parser<K>& toSkip) {
+    return Map<std::tuple<std::vector<K>, T, std::vector<K>>, T>(
+        Sequence(
+            ZeroOrMore(toSkip), 
+            parser, 
+            ZeroOrMore(toSkip)
+        ),
+        [](std::tuple<std::vector<K>, T, std::vector<K>>& val) -> T {
+            return std::get<1>(val);
+        }
+    ); //Maybe just Last(Sequence(Optional(toSkip), parser)); skipping only leading values
+}
+
+template <typename T, typename K>
+Parser<std::vector<T>> SeparatedWith(const Parser<T>& lhs, const Parser<K>& rhs) {
+    return Map<std::tuple<T, std::vector<std::tuple<K, T>>>, std::vector<T>>(
+            Sequence(lhs, Repeat(Sequence(rhs, lhs), 0)),
+            [](std::tuple<T, std::vector<std::tuple<K, T>>>& a) -> std::vector<T> {
+                std::vector<T> vec;
+                vec.push_back(std::get<0>(a));
+                for(auto x : std::get<1>(a)) {
+                    vec.push_back(std::get<1>(x));
+                }
+                return vec;
+            }
+        );
 }
 
 //TODO ensure return types are correct (clean up if allowed ie % operator would be nice to just get std::vector without separator) 
@@ -315,8 +367,8 @@ Parser<std::variant<T,K>> operator | (const Parser<T>& lhs, const Parser<K>& rhs
 
 //Left hand thing separated by right hand thing (shorthand for Sequence(lhs, Repeat(Sequence(rhs, lhs), 0)))
 template <typename T, typename K>
-Parser<std::tuple<T, std::vector< std::tuple<K,T>>>> operator % (const Parser<T>& lhs, const Parser<K>& rhs) {
-    return Sequence(lhs, Repeat(Sequence(rhs, lhs), 0));
+Parser<std::vector<T>> operator % (const Parser<T>& lhs, const Parser<K>& rhs) {
+    return SeparatedWith(lhs, rhs);
 }
 
 //One or more repetitions (shorthand for Repeat(val, 1))
@@ -348,6 +400,100 @@ template <typename T, typename K>
 Parser<T> operator ^ (const Parser<T>& val, const Parser<K>& skips) {
     return Skip(val, skips);
 }
+
+//Base parsers
+
+const Parser<char> Whitespace =  CharIn({' ', '\r', '\n', '\t', '\f', '\v', '\b'});;
+
+const Parser<char> Digit = Range('0', '9');
+
+const Parser<char> Lowercase = Range('a', 'z');
+
+const Parser<char> Uppercase = Range('A', 'Z');
+
+const Parser<char> Alpha = Range('a', 'Z');
+
+const Parser<char> AlphaNumeric = Range('0', 'Z'); //Maybe replace with Or(Digit, Alpha)
+
+using DecimalNumberParseType = std::tuple<std::optional<char>, std::vector<char>, std::optional<std::tuple<char,std::vector<char>>>,std::optional<std::tuple<char, std::optional<char>,std::vector<char>>>>;
+const Parser<double> DecimalNumber = 
+Map<DecimalNumberParseType, double> (
+Sequence(
+    Optional(
+        CharIn({'-', '+'})
+    ), 
+    OneOrMore(Digit), 
+    Optional(
+        Sequence(
+            Char('.'), 
+            OneOrMore(Digit)
+        )
+    ),
+    Optional(
+        Sequence(
+            CharIn({'e', 'E'}),
+            Optional(
+                CharIn({'-', '+'})
+            ),
+            OneOrMore(Digit)
+        )
+    )
+),
+[](DecimalNumberParseType& res) -> double {
+    bool hasSign = std::get<0>(res).has_value();
+    bool hasFrac = std::get<2>(res).has_value();
+    bool hasExp = std::get<3>(res).has_value();
+
+    std::stringstream sb;
+    //Append sign
+    if(hasSign && std::get<0>(res).value() == '-') {
+        sb << '-';
+    }
+    //Append whole part
+    for(auto i : std::get<1>(res)){
+        sb << i;
+    }
+    if(hasFrac) {
+        //Append decimal
+        sb << '.';
+        //Append fractional part
+        for(auto i : std::get<1>(std::get<2>(res).value())) {
+            sb << i;
+        }
+    }
+
+    double val = std::stod(sb.str());
+
+    //Multiply by exponent
+    if(hasExp){
+        std::stringstream sb2;
+        std::optional<char>& va = std::get<1>(std::get<3>(res).value());
+        if(va.has_value() && va.value() == '-') {
+            sb2 << '-';
+        }
+        for(auto i : std::get<2>(std::get<3>(res).value())) {
+            sb2 << i; 
+        }
+        double x = std::stod(sb2.str());
+        val *= std::pow(10, x);
+    }
+    return val;
+}
+);
+
+const Parser<std::string> QuotedString = Map<std::tuple<char, std::vector<char>, char>, std::string>(
+    Sequence(
+        Char('"'),
+        ZeroOrMore(
+            ParseStringCharacter()
+        ),
+        Char('"')
+    ),
+    [](std::tuple<char, std::vector<char>, char>& tup) -> std::string {
+        std::vector<char>& vec = std::get<1>(tup);
+        return std::string(vec.cbegin(), vec.cend());
+    }
+);
 
 }
 }

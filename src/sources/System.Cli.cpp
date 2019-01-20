@@ -1,5 +1,5 @@
 #include "System.Cli.hpp"
-#include "System.Environment.hpp"
+#include "System.Os.hpp"
 #include <sstream>
 #include <map>
 
@@ -208,7 +208,7 @@ bool CliCommand::Parse(const std::vector<std::string>& argList) {
 
 void CliCommand::PrintHelp(std::ostream& stream) {
     //Version
-    stream << "Version: " << this->version.major << "." << this->version.minor << "." << this->version.revision << System::Environment::NewLine;
+    stream << "Version: " << this->version.major << "." << this->version.minor << "." << this->version.revision << System::Os::EOL;
     //Usage
     stream << "Usage: ";
     for(auto arg : this->args) {
@@ -225,27 +225,27 @@ void CliCommand::PrintHelp(std::ostream& stream) {
         stream << "[sub-command]";
 
     //Description
-    stream << System::Environment::NewLine << System::Environment::NewLine;
+    stream << System::Os::EOL << System::Os::EOL;
     stream << this->desc;
-    stream << System::Environment::NewLine << System::Environment::NewLine;
+    stream << System::Os::EOL << System::Os::EOL;
 
     //Options
     if(this->options.size() > 0) {
-        stream << "Options:" << System::Environment::NewLine;
+        stream << "Options:" << System::Os::EOL;
         for(auto opt : this->options) {
             stream << "\t-" << opt.flag << ", --" << opt.name << " " << opt.description;
             if(!opt.optional)
                 stream << "(Required)";
-            stream << System::Environment::NewLine;
+            stream << System::Os::EOL;
         }
-        stream << System::Environment::NewLine;
+        stream << System::Os::EOL;
     }
 
     //Sub-commands
     if(this->commands.size() > 0) {
-        stream << "Sub-commands:" << System::Environment::NewLine;
+        stream << "Sub-commands:" << System::Os::EOL;
         for(auto cmd : this->commands) {
-            stream << "\t" << cmd.name << " " << cmd.desc << System::Environment::NewLine;
+            stream << "\t" << cmd.name << " " << cmd.desc << System::Os::EOL;
         }
     }   
 }
